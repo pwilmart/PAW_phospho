@@ -80,10 +80,10 @@ def make_header_map(line, separator='\t'):
     if not line:
         return header_map
 
-    # split line at separator and populate dictionary (remove double quotes around header)
-    headers = line.split(separator)
+    # split line at separator and populate dictionary (remove any double quotes around headers)
+    headers = [x.replace('"', '') for x in line.split(separator)]
     for i, header in enumerate(headers):
-        header_map[header[1:-1]] = i
+        header_map[header] = i
         
     return header_map
     # end
@@ -153,16 +153,12 @@ def test_trimmed_average_intensity(intensities, intensity):
 class PSM():
     """Container for PSM information
     """
-    def __init__(self, line, header_map, missing=0.0, separator='\t'):
+    def __init__(self, line, header_map, proteins, prot_index, missing=0.0, separator='\t'):
         """Parse line and populate fields
         """
-        items = line.split(separator)
-        # PD exports fields may be enclosed in double quotes
-        temp_items = []
-        for item in items:
-        	item.replace('"', '')
-        	temp_items.append(item)
-        items = temp_items
+        items = [x.replace('"', '') for x in line.split(separator)]  # PD exports fields may be enclosed in double quotes
+        
+    
         
         self.channels = ['126', '127N', '127C', '128N', '128C',
                          '129N', '129C', '130N', '130C', 
@@ -170,20 +166,24 @@ class PSM():
                          '133N', '133C', '134N', '134C', '135N']
 
         # parse row items into object attributes
+        # 
         self.checked = items[header_map['Checked']]
         self.confidence = items[header_map['Confidence']]
         self.identifying_node = items[header_map['Identifying Node']]
         self.psm_ambiguity = items[header_map['PSM Ambiguity']]
         self.annotated_sequence = items[header_map['Annotated Sequence']]
+        self.sequence = self.annotated_sequence.split('.')[1]
         self.peptide_length = len(self.annotated_sequence.split('.')[1])    # compute peptide length 
         self.modifications = items[header_map['Modifications']] 
         self.number_phospho_groups = self.modifications.count('Phospho')   # add count of phospho sites
         self.number_proteins = self._int(items[header_map['# Proteins']]) # convert to integer
-        self.master_protein_accessions = items[header_map['Master Protein Accessions']].split('; ') # list
-        self.protein_accessions = items[header_map['Protein Accessions']].split('; ')  # list
+        self.master_protein_accessions = items[header_map['Master Protein Accessions']]
+        self.protein_accessions = items[header_map['Protein Accessions']]
+        self.protein_descriptions = lookup_headers(self.protein_accessions, proteins, prot_index)
         self.missed_cleavages = self._int(items[header_map['# Missed Cleavages']])  # convert to integer
         self.charge = self._int(items[header_map['Charge']])
         self.delta_score = self._float(items[header_map['DeltaScore']])
+##        # not sure if this is needed
 ##        if self.delta_score == 1.0:
 ##            self.delta_score = 0.0
         self.delta_cn = self._float(items[header_map['DeltaCn']])
@@ -194,20 +194,20 @@ class PSM():
         self.theo_mhplus = self._float(items[header_map['Theo. MH+ [Da]']])
         self.deltamass_ppm = self._float(items[header_map['DeltaM [ppm]']])
         self.deltamass_da = self._float(items[header_map['Deltam/z [Da]']])
-		self.activation_type = items[header_map['Activation Type']]
-		self.ms_order = items[header_map['MS Order']]
-		self.isolation_interefence = self._float(items[header_map['Isolation Interference [%]']])
-		self.sps_mass_matches = self._float(items[header_map['SPS Mass Matches [%]']])
-		self.ave_reporter_sn = self._float(items[header_map['Average Reporter S/N']])
-		self.ion_inject_time = self._float(items[header_map['Ion Inject Time [ms]']])
-		self.rt_min = self._float(items[header_map['RT [min]']])
-		self.first_scan = items[header_map['First Scan']]
-		self.file_id = items[header_map['File ID']]
-		# get the array of reporter ion intensities
-		self.intensities = [0.0 for x in self.channels[:plex]]
-		plex = len([x for x in list(header_map.keys()) if x.startswith('Abundance:')])
-        for i, channel in enumerate(self.channels[:plex]):
-        	key = 'Abundance: ' + channel
+        self.activation_type = items[header_map['Activation Type']]
+        self.ms_order = items[header_map['MS Order']]
+        self.isolation_interference = self._float(items[header_map['Isolation Interference [%]']])
+        self.sps_mass_matches = self._float(items[header_map['SPS Mass Matches [%]']])
+        self.ave_reporter_sn = self._float(items[header_map['Average Reporter S/N']])
+        self.ion_inject_time = self._float(items[header_map['Ion Inject Time [ms]']])
+        self.rt_min = self._float(items[header_map['RT [min]']])
+        self.first_scan = items[header_map['First Scan']]
+        self.file_id = items[header_map['File ID']]
+        # get the array of reporter ion intensities
+        self.plex = len([x for x in list(header_map.keys()) if x.startswith('Abundance:')])
+        self.intensities = [0.0 for x in self.channels[:self.plex]]
+        for i, channel in enumerate(self.channels[:self.plex]):
+            key = 'Abundance: ' + channel
             self.intensities[i]  =  self._float(items[header_map[key]], missing)
         self.total = sum(self.intensities)
         self.quant_info = items[header_map['Quan Info']]
@@ -217,14 +217,16 @@ class PSM():
         self.pep = self._float(items[header_map['PEP']])
         self.svm_score = self._float(items[header_map['SVM Score']])
         try:
-        	self.best_site_probabilities = items[header_map['ptmRS: Best Site Probabilities']]
+            self.best_site_probabilities = items[header_map['ptmRS: Best Site Probabilities']]
         except:
-        	self.best_site_probabilities = ''
-        # some computed attributes
-        self.grouper = self.annotated_sequence.upper().split('.')[1] + '_' + str(int(round(self.theo_mhplus, 0)))    # key for grouping        
+            self.best_site_probabilities = ''
+                
+        # some computed attributes and attributes that are set later
+        self.grouper = self.sequence.upper() + '_' + str(int(round(self.theo_mhplus, 0)))  # key for grouping        
         self.meets_all_criteria = False
+        self.psm_number = None
         self.grouped_psms = ''
-        self.psm_count = 0
+        self.psm_count = None
         self.localization = 'NA'
         return
 
@@ -249,153 +251,92 @@ class PSM():
     def _snoop(self):
         """Diagnostic dump to console
         """
-        print('Accessions:', self.accessions)
-        print('Sequence:', self.sequence)
-        print('Ambiguity:', self.ambiguity)
-        print('Modifications:', self.modifications)
-        for i, channel in enumerate(self.channels):
-            print('%s: %s' % (channel, self.intensities[i]))
-        print('Total Intensity:', self.total)
-        print('Quan Info:', self.quant_info)
-        print('Quan Usage:', self.quant_usage)
-        print('q-Value:', self.qval)
-        print('XCorr:', self.xcorr)
-        print('DeltaCn:', self.delta_score)
-        print('# Missed Cleavages:', self.missed)
-        print('Spectrum File:', self.spectrum_file)
-        print('First Scan:', self.first)
-        print('Last Scan:', self.last)
-        print('Charge:', self.charge)
-        print('RT [min]:', self.rt)
-        print('MH+ [Da]:', self.mhplus)
-        print('Delta Mass [Da]:', self.deltamassda)
-        print('Delta Mass [PPM]:', self.deltamassppm)
-        print('MeetsAllCriteria:', self.meets_all_criteria)
+        print(f'Accessions: {self.protein_accessions}')
+        print(f'Annotated Sequence: {self.annotated_sequence}')
+        print(f'Sequence: {self.sequence}')
+        print(f'Ambiguity: {self.psm_ambiguity}')
+        print(f'Modifications: {self.modifications}')
+        print(f'Plex: {self.plex}')
+        for i, channel in enumerate(self.channels[:self.plex]):
+            print(f'{channel}: {self.intensities[i]:,.0f}')
+        print(f'Total Intensity: {self.total:,.0f}')
+        print(f'Quan Info: {self.quant_info}')
+        print(f'q-Value: {self.q_value}')
+        print(f'XCorr: {self.xcorr}')
+        print(f'DeltaCn: {self.delta_score}')
+        print(f'# Missed Cleavages: {self.missed_cleavages}')
+        print(f'First Scan: {self.first_scan}')
+        print(f'Charge: {self.charge}')
+        print(f'RT [min]: {self.rt_min}')
+        print(f'MH+ [Da]: {self.mhplus}')
+        print(f'Delta Mass [Da]: {self.deltamass_da}')
+        print(f'Delta Mass [PPM]: {self.deltamass_ppm}')
+        print(f'MeetsAllCriteria: {self.meets_all_criteria}')
         return
 
     def make_header(self):
         """Makes a header line for PSM data
         """
-        header_line = (['Counter', 'Confidence Level', 'Sequence', 'PSM Ambiguity', 'Protein Descriptions',
-                        '# Protein Groups', 'Protein Group Accessions', 'Modifications', 'Activation Type',
-                        'DeltaScore', 'Rank', 'phosphoRS Isoform Probability', 'phosphoRS Site Probabilities']
-                       + self.channels +
-                       ['Total Int', 'Quan Info', 'Quan Usage', 'phosphoRS Binomial Peptide Score', 'q-Value', 'PEP',
-                        'Decoy Peptides Matched', 'Peptides Matched', 'XCorr', '# Missed Cleavages',
-                        'Isolation Inteference [%]', 'Ion Inject Time [ms]', 'Intensity', 'Charge', 'm/z [Da]',
-                        'MH+ [Da]', 'Delta Mass [Da]', 'Delta Mass [PPM]', 'RT [min]', 'First Scan',
-                        'Last Scan', 'Spectrum File', 'PSM Number', 'MeetsAllCriteria', 'New Sequence', 'New Modifications',
-                        'Number Phospho Sites', 'Peptide Length', 'New Site Prob Peptide', 'New Site Prob Protein',
-                        'Max Prob', 'Min Prob', 'Site List', 'Localization Status', 'Group String', 'Grouped PSMs',
-                        'Used PSM Count', 'PeptideMatchInfo'])
+        header_line = (['Counter', 'Checked', 'Confidence', 'Identifying Node', 'PSM Ambiguity', 'Annotated Sequence',
+                        'Modifications', '# Proteins', 'Master Protein Accessions', 'Protein Accessions',
+                        '# Missed Cleavages', 'Charge', 'DeltaScore', 'DeltaCn', 'Rank', 'Search Engine Rank',
+                        'm/z [Da]', 'MH+ [Da]', 'Theo. MH+ [Da]', 'DeltaM [ppm]', 'Deltam/z [Da]',
+                        'Activation Type', 'MS Order', 'Isolation Interference [%]', 'SPS Mass Matches [%]',
+                        'Average Reporter S/N', 'Ion Inject Time [ms]', 'RT [min]', 'First Scan', 'File ID'] +
+                        self.channels[:self.plex] +
+                        ['Intensity Total', 'Quan Info', 'XCorr', '# Protein Groups', 'q-Value', 'PEP',
+                         'SVM Score', 'ptmRS: Best Site Probabilities', 'PSM Number', 'Meets All Criteria',
+                         'New Sequence', 'New Modifications', 'Number Phospho Groups', 'Peptide Length',
+                         'New Site Prob. Peptide', 'New Site Probabilities', 'Maximum Prob.', 'Minimum Prob.',
+                         'Sites', 'Localization', 'Grouping Key', 'Grouped PSM Numbers', 'Number Grouped PSMs',
+                         'Match String'])
         return '\t'.join(header_line)
+
+    def make_data(self):
+        """Makes a data line for PSM data
+        """
+        data_list = ([1, self.checked, self.confidence, self.identifying_node, self.psm_ambiguity,
+                      self.annotated_sequence, self.modifications, self.number_proteins,
+                      self.master_protein_accessions, self.protein_accessions, self.missed_cleavages,
+                      self.charge, self.delta_score, self.delta_cn, self.rank, self.se_rank, self.m_over_z,
+                      self.mhplus, self.theo_mhplus, self.deltamass_ppm, self.deltamass_da,
+                      self.activation_type, self.ms_order, self.isolation_interference, self.sps_mass_matches,
+                      self.ave_reporter_sn, self.ion_inject_time, self.rt_min, self.first_scan, self.file_id] +                    
+                     self.intensities +                     
+                     [self.total, self.quant_info, self.xcorr, self.protein_groups, self.q_value, self.pep,
+                      self.svm_score, self.best_site_probabilities, self.psm_number, self.meets_all_criteria,
+                      self.new_sequence, self.new_modifications, self.number_phospho_groups, self.peptide_length,
+                      self.new_site_prob_peptide, self.new_site_prob, self.max_prob, self.min_prob, self.sites,
+                      self.localization, self.grouper, self.grouped_psms, self.psm_count, self.match])
+        return '\t'.join([str(x) for x in data_list])
 
     def make_header_brief(self):
         """Makes a brief header line.
         """
-        header_line = ['Counter', 'Protein Group Accessions', 'Protein Descriptions',
-                       'Quan Info', 'Isolation Inteference [%]', 'New Sequence',
-                       'New Modifications', 'Number Phospho Sites', 'Peptide Length',
-                       'New Site Prob Peptide', 'New Site Prob Protein', 'Site List',
-                       'Localization Status', 'Used PSM Count', '126', '127_N', '127_C',
-                       '128_N', '128_C', '129_N', '129_C', '130_N', '130_C', '131']
+        header_line = ['Counter', 'Protein Accessions', 'Protein Descriptions',
+                       'Quan Info', 'Isolation Inteference [%]', 'SPS Mass Matches',
+                       'New Sequence', 'New Modifications', 'Number Phospho Sites',
+                       'Peptide Length', 'New Site Prob Peptide', 'New Site Prob Protein',
+                       'Site List', 'Localization Status', 'Used PSM Count'] + self.channels[:self.plex]
         return '\t'.join(header_line)
 
     def make_data_brief(self):
         """Makes a brief data line for PSM data
         """
-        data_list = ([1, self.accessions, self.descriptions,
-                      self.quant_info, self.interference, self.new_sequence,
-                      self.new_modifications, self.number_phospho, self.peptide_length,
-                      self.new_site_prob_peptide, self.new_site_prob, self.sites,
-                      self.localization, self.psm_count] + self.intensities)
-        return '\t'.join([str(x) for x in data_list])
-
-    def make_data(self):
-        """Makes a data line for PSM data
-        """
-        data_list = ([1, self.confidence_level, self.sequence, self.ambiguity, self.descriptions,
-                      self.number_groups, self.accessions, self.modifications, self.activation,
-                      self.delta_score, self.rank, self.isoform_prob, self.site_prob] +
-                     self.intensities +
-                     [self.total, self.quant_info, self.quant_usage, self.binomial_score, self.qval,
-                      self.pep, self.decoy_candidates, self.target_candidates, self.xcorr, self.missed,
-                      self.interference, self.inject_time, self.intensity, self.charge, self.moverz,
-                      self.mhplus, self.deltamassda, self.deltamassppm, self.rt, self.first, self.last,
-                      self.spectrum_file, self.psm_number, self.meets_all_criteria, self.new_sequence, self.new_modifications,
-                      self.number_phospho, self.peptide_length, self.new_site_prob_peptide, self.new_site_prob,
-                      self.max_prob, self.min_prob, self.sites, self.localization, self.grouper, self.grouped_psms,
-                      self.psm_count, self.match])
+        data_list = ([1, self.protein_accessions, self.protein_descriptions,
+                      self.quant_info, self.isolation_interference, self.sps_mass_matches,
+                      self.new_sequence, self.new_modifications, self.number_phospho_groups,
+                      self.peptide_length, self.new_site_prob_peptide, self.new_site_prob, self.sites,
+                      self.localization, self.psm_count] + self.intensities[:self.plex])
         return '\t'.join([str(x) for x in data_list])
     
     def make_key(self):
         """Makes a column header key
         """
-        return """\nColumn Header\tDescription
-Counter\tColumn of 'ones' for counting rows
-Confidence Level\tPD confidence level flag
-Sequence\tPepetide sequence (PD 1.4 format)
-PSM Ambiguity\tWhether peptide is shared or unique
-Protein Descriptions\tProtein description strings
-# Protein Groups\tNumber of proteins in group
-Protein Group Accessions\tProtein accession(s)
-Modifications\tModifications (PD 1.4 format)
-Activation Type\tActivation (fragmentation) type
-DeltaScore\tDelta CN vlaue from SEQUEST
-Rank\tPSM rank from search engine
-phosphoRS Isoform Probability\tPhospoRS localization probability (%)
-phosphoRS Site Probabilities\tPhospoRS site localization probabilities
-TotInt 126\tIntensity for respective TMT channel
-TotInt 127_N\tIntensity for respective TMT channel
-TotInt 127_C\tTotal protein intensity (sum over PSMs) for respective TMT channel
-TotInt 128_N\tIntensity for respective TMT channel
-TotInt 128_C\tIntensity for respective TMT channel
-TotInt 129_N\tIntensity for respective TMT channel
-TotInt 129_C\tIntensity for respective TMT channel
-TotInt 130_N\tIntensity for respective TMT channel
-TotInt 130_C\tIntensity for respective TMT channel
-TotInt 131\tIntensity for respective TMT channel
-Total Intensity\tSum across reporter ion intensities
-Quan Info\tQuantitation Information tag
-Quan Usage\tWhether or not peptide is useable for TMT quantitation
-q-Value\tPSM q-value computer by Percolator
-PEP\tPosterior error probability
-Decoy Peptides Matched\tNumber of decoy candidates
-Peptides Matched\tNumber of target peptide candidates
-XCorr\tPSM XCorr value from SEQUEST
-# Missed Cleavages\tNumber of missed enzymatic cleavages
-Isolation Interference [%]\tEstimated precursor isolation  purity
-Ion Inject Time [ms]\tIon inject time in milliseconds
-Intensity\tPrecursor intensity
-Charge\tPeptide charge
-MH+ [Da]\tMeasure MH+ value (Da)
-Delta Mass [Da]\tDiffernece betwen measured and calcuated masses (Da)
-Delta Mass [PPM]\tDiffernece betwen measured and calcuated masses (ppm)
-RT [min]\tRetention time for MS2 scan
-First Scan\tStarting scan number
-Last Scan\tEnding scan number
-Spectrum File\tRAW file base name
-Annotation\tWho knows
-PSM Number\tArbitrary PSM number to correlate grouped and ungrouped PSMs
-MeetsAllCriteira\tTrue if PSM meets a set of validation criteria (q-score, length, charge range, deltamass, etc.)
-New Sequence\tNew peptide sequence string in SEQUEST format
-New Modifications\tModifications string without static mods
-Number Phospho Sites\tNumber of phospho sites in peptide
-Peptide Length\tNumber of amino acids in peptide sequence
-New Site Prob Peptide\tSimplified phosphoRS site probabilities (reduced to number of phosphosites from high to low p-val), relative positions
-New Site Prob Protein\tSimplified phosphoRS site probabilities (reduced to number of phosphosites from high to low p-val), aa positions in protein (probability ties are summed)
-Max Prob\tMaximum site probability
-Min Prob\tMinimum site probability (cut at number of sites)
-Site List\tList of localized sites without any probabilities
-Localization Status\tConsistant string means that all PSM localizations have similar sites, Varies denotes otherwise
-Group String\tString used to group similar PSM (sequence plus nominal MH+ mass)
-Used PSM Count\tThe number of PSMs contributing to the intensity totals
-Match\tMatch tuple from peptide lookup in protein sequence (multiple tuples if peptide is present more than once in protein)
-
-"""
+        return 
     # end class
 
-def parse_psm_lines(psm_file, max_qvalue=0.05, max_ppm=20.0, min_intensity=500, missing=0.0, separator='\t'):
+def parse_psm_lines(psm_file, proteins, prot_index, max_qvalue=0.05, max_ppm=20.0, min_intensity=500, missing=0.0, separator='\t'):
     """Parses PSM exports and adds information to PSM objects.
     Returns a list of all PSMs passing q-value, deltamass, and intensity cutoffs.
     """
@@ -426,14 +367,14 @@ def parse_psm_lines(psm_file, max_qvalue=0.05, max_ppm=20.0, min_intensity=500, 
         
         total += 1        
         if not start:   # skip lines until header
-            if line.startswith('"Confidence Level"'):   # look for header line
-                psm_map = make_header_map(line)
+            if line.startswith('Checked\tConfidence'):   # look for header line
+                psm_map = make_header_map(line)                
                 start = True
                 continue
-        else:   # parse table lines
-            psm = PSM(line, psm_map, missing, separator)
-##            if not psm:
-            if not psm.accessions: # this may filter out low q-value matches
+        else:
+            # parse table lines
+            psm = PSM(line, psm_map, proteins, prot_index, missing, separator)
+            if not psm.protein_accessions: # this may filter out low q-value matches
                 total += -1
                 reject += -1
                 continue
@@ -448,14 +389,14 @@ def parse_psm_lines(psm_file, max_qvalue=0.05, max_ppm=20.0, min_intensity=500, 
             psm_list.append(psm)
 
             # test various criteria
-            if psm.qval <= max_qvalue:
+            if psm.q_value <= max_qvalue:
                 qval_good += 1
             else:
                 qval_bad += 1
                 reject += 1
                 continue
                 
-            if abs(psm.deltamassppm) <= max_ppm:
+            if abs(psm.deltamass_ppm) <= max_ppm:
                 in_ppm += 1
             else:
                 out_ppm += 1
@@ -620,30 +561,33 @@ class RSProb:
     """Container for parsed PhosphoRS data
     """
     def __init__(self, one_site):
+        if '(Phospho)' not in one_site:
+            print('...WARNING: non-phospho site:', one_site)
         try:
-            self.residue = [one_site.split('(')[0]]   # amino acid (S, T, or Y)
-            self.position = [int(one_site.split(':')[0][:-1].split('(')[1])]   # relative position in peptide string
+            residue_position = one_site.split('(Phospho)')[0]
+            residue = residue_position[0]
+            position = int(residue_position[1:])
+            self.residue = [residue]   # amino acid (S, T, or Y)
+            self.position = [position]   # relative position in peptide string
             self.probability = float(one_site.split(':')[1])  # assigned probability in percent
         except:
-            print('...WARNING: site description:', one_site)
-##            self.residue = ''
-##            self.position = 0
-##            self.probability = 0.0
+            print('...WARNING: site parsing failed:', one_site)
 
 def parse_RSProb(psm):
     """Parse phosphoRS probability string and returns N sites of the highest probability.
     """
     RS_full_list = []
-    if ((not psm.site_prob) or
-        (psm.site_prob == 'Too many NL-allowing PTMs') or
-        (psm.site_prob == 'Too many isoforms')):
+    if ((not psm.best_site_probabilities) or
+        (psm.best_site_probabilities == 'Too many NL-allowing PTMs') or
+        (psm.best_site_probabilities == 'Too many isoforms') or
+        (psm.best_site_probabilities == 'Inconclusive data')):
         psm.new_site_prob = ''
         psm.new_site_prob_peptide = ''
         psm.max_prob = 0.0
         psm.min_prob = 0.0
         psm.sites = ''
         return
-    for prob in psm.site_prob.split(';'):
+    for prob in psm.best_site_probabilities.split(';'):
         prob = prob.strip()
         prob = RSProb(prob)     # this can return empty object for odd PhosphoRS site descriptions
         prob.position[0] += (psm.start-1)
@@ -651,12 +595,12 @@ def parse_RSProb(psm):
 
     # sort descending and get the top N sites
     RS_full_list.sort(reverse=True, key=lambda x: x.probability)
-    RS_list = RS_full_list[:psm.number_phospho]
+    RS_list = RS_full_list[:psm.number_phospho_groups]
     psm.max_prob = RS_list[0].probability
     psm.min_prob = RS_list[-1].probability
 
     # check for prob ties
-    for rs in RS_full_list[psm.number_phospho:]:
+    for rs in RS_full_list[psm.number_phospho_groups:]:
         if rs.probability == RS_list[-1].probability:
             RS_list[-1].residue += rs.residue
             RS_list[-1].position += rs.position
@@ -699,7 +643,17 @@ def make_protein_index(proteins):
             if acc in skip:
                 continue
             prot_index[acc] = i
-    return prot_index        
+    return prot_index
+
+def lookup_headers(acc_string, proteins, prot_index):
+    """Fetches header lines for proteins.
+    """
+    header_list = []
+    for acc in [x.strip() for x in acc_string.split(';')]:
+        prot = proteins[prot_index[acc]]
+        header_list.append(prot.description)
+    return '; '.join(header_list)
+
 
 def lookup_peptides(psm_list, proteins, prot_index):
     """Finds starting residue number for peptide sequence in protein sequence.
@@ -707,7 +661,7 @@ def lookup_peptides(psm_list, proteins, prot_index):
     for psm in psm_list:
         try:
             # eventually add lookup of all accessions, just first to test
-            acc = psm.accessions.split(';')[0].strip()
+            acc = psm.protein_accessions.split(';')[0].strip()
             prot = proteins[prot_index[acc]]
             psm.match = prot.findPeptide(psm.new_sequence, pad_count=3)
             psm.start = psm.match[0][1]
@@ -783,14 +737,14 @@ def test_phosphoRS_localization(psm_list):
     Should depend on number of sites in peptide.
     """
     for psm in psm_list:
-        if psm.number_phospho == 0:
+        if psm.number_phospho_groups == 0:
             if SKIP_UNMOD:
                 psm.meets_all_criteria = False  # this rejects unmodified peptides
-        elif psm.number_phospho == 1 and psm.min_prob < 45.0:
+        elif psm.number_phospho_groups == 1 and psm.min_prob < 45.0:
             psm.meets_all_criteria = False
-        elif psm.number_phospho == 2 and psm.min_prob < 0.30:
+        elif psm.number_phospho_groups == 2 and psm.min_prob < 0.30:
             psm.meets_all_criteria = False
-        elif psm.number_phospho == 3 and psm.min_prob < 22.5:
+        elif psm.number_phospho_groups == 3 and psm.min_prob < 22.5:
             psm.meets_all_criteria = False
 
 def make_grouped_PSMs(psm_list, group_index, missing=150.0):
@@ -809,7 +763,7 @@ def make_grouped_PSMs(psm_list, group_index, missing=150.0):
             new_psm_list.append(best_psm)
         else:
             # pick group member with best q-value to represent group
-            psm_group_list = sorted([psm_list[i] for i in group_index[key]], key=lambda x: x.qval)
+            psm_group_list = sorted([psm_list[i] for i in group_index[key]], key=lambda x: x.q_value)
             best_psm = copy.deepcopy(psm_group_list[0])
             best_psm.psm_count = len(psm_group_list)
             best_psm.grouped_psms = '; '.join([str(x.psm_number) for x in psm_group_list])
@@ -839,7 +793,7 @@ def make_grouped_PSMs(psm_list, group_index, missing=150.0):
 ###########################################
 
 print('====================================================')
-print(' program "PD_TMT_phospho_processer.py", version 2.1 ')
+print(' program "PD_TMT_phospho_processer.py", version 3.1 ')
 print('====================================================')
 print('Ran on:', time.ctime())
 print('INTENSITY = %s, QVALUE = %s, MISSING = %s, PPM = %s' % (INTENSITY, QVALUE, MISSING, PPM))
@@ -848,10 +802,10 @@ print('INTENSITY = %s, QVALUE = %s, MISSING = %s, PPM = %s' % (INTENSITY, QVALUE
 default_location = r'F:\PSR_Core_Analysis'
 if not os.path.exists(default_location):
     default_location = os.getcwd()
-print('\nSelect the PSM export file')
+print('\nSelect the PSM export file (tab-delimited text)')
 psm_filename = PAW_lib.get_file(default_location,
                                 [('Text files', '*.txt'), ('All files', '*.*')],
-                                'Select a phospho PSM export file')
+                                'Select a PD 3.x phospho PSM export file')
 if not psm_filename: sys.exit()     # exit if no file selected
 print('...', psm_filename, 'was selected')
 
@@ -861,7 +815,7 @@ base_log = base.replace('.txt', '_log.txt')
 log_obj = open(os.path.join(path, base_log), 'a')
 
 print('\n====================================================', file=log_obj)
-print(' program "PD_TMT_phospho_processer.py", version 2.1 ', file=log_obj)
+print(' program "PD_TMT_phospho_processer.py", version 3.1 ', file=log_obj)
 print('====================================================', file=log_obj)
 print('Ran on:', time.ctime(), file=log_obj)
 print('INTENSITY = %s, QVALUE = %s, MISSING = %s, PPM = %s' % (INTENSITY, QVALUE, MISSING, PPM), file=log_obj)
@@ -883,9 +837,10 @@ while f.readNextProtein(p, False):
     prot = copy.deepcopy(p)
     proteins.append(prot)
 prot_index = make_protein_index(proteins)
+print('Number of proteins in FASTA file:', len(proteins))
 
 # get the psm information from the PSM export file
-counts, psm_list = parse_psm_lines(psm_filename, QVALUE, PPM, INTENSITY, 0.0, SEPARATOR)
+counts, psm_list = parse_psm_lines(psm_filename, proteins, prot_index, QVALUE, PPM, INTENSITY, 0.0, SEPARATOR)
 
 # analyze PTMs: fixed or variable? what residues? what names?
 aa_freq, all_mods = analyze_modifications(psm_list)
@@ -920,8 +875,14 @@ new_psm_list = make_grouped_PSMs(psm_list, group_index, MISSING)    # do the zer
 ######################################################
 # when everything is done, sort and write to new files
 
-# open results file for all PSMs, print header lines
-psmout = open(psm_filename.replace('_psms', '_psm_filtered_all'), 'w')
+# get original file name/path and ext (for making otput filenames)
+path, extension = os.path.splitext(psm_filename)
+
+# open full results file for all filtered PSMs
+new_path = path + '_psm_filtered_all'
+psmout = open(new_path + extension, 'w')
+
+# print the header line
 print(psm_list[0].make_header(), file=psmout)
 
 # print PSM data to file sorted by decreasing total intensity
@@ -953,8 +914,10 @@ psmout.close()
 log_obj.close()
 
 # open results file for combined PSMs, print header lines
-psmout = open(psm_filename.replace('_psms', '_psm_filtered_combined'), 'w')
-psmout_brief = open(psm_filename.replace('_psms', '_psm_filtered_combined_brief'), 'w')
+new_path = path + '_psm_filtered_combined'
+psmout = open(new_path + extension, 'w')
+new_path = path + '_psm_filtered_combined_brief'
+psmout_brief = open(new_path + extension, 'w')
 print(new_psm_list[0].make_header(), file=psmout)
 print(new_psm_list[0].make_header_brief(), file=psmout_brief)
 

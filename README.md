@@ -16,33 +16,61 @@ Protein inference and parsimony logic are critical steps in working backwards fr
 
 The typical tools/pipelines first figure out the final protein list. This may involve a protein ranking function/heuristic and some attempt at protein false discovery rate control using target/decoy protein counting. Once the proteins are decided, tables of peptides and PSMs associated with the proteins in the final list are generated. Some tools/pipelines will also make a conditional PTM report. The important point is that any PSM, peptide, PTM reports are conditional. They will not include all PSMs that passed and PSM-level filtering. The protein inference, parsimony logic, protein identification criteria, and any protein FDR control will reject some PSMs. Some of the phospho peptides will be lost.
 
-Phospho peptide experiments require peptide-centric results reporting. This might include some peptide grouping of quantitative measurements (less noise and fewer multiple tests to correct for), modification reports, site reports, site localizations, etc. No tools/pipelines do this, even after two decades of phosphorylation studies.   
+Phospho peptide experiments require peptide-centric results reporting. This might include some peptide grouping of quantitative measurements (less noise and fewer multiple tests to correct for), modification reports, site reports, site localizations, etc. No tools/pipelines do this - even after two decades of phosphorylation studies.   
 
-## Bad data analysis practices are common
+## Poor data analysis practices are common
 
 The fact that protein inference is completely irrelevant in phospho peptide studies and all phospho peptide studies are processed with tools/pipelines that are 100% dependent on protein inference should have been a **giant red flag**. How can it be that so many very smart folks for decades have not realized that their data analyses of phospho peptide data were fundamentally flawed? The short answer is that tool/pipeline failures are not catastrophic and common bad practices in tool design give the appearance that they work for peptide-centric data.
 
-There are so many bad data analysis practices that are de facto standards in proteomics, it is hard to know where to start. All tools/pipelines are primarily designed to report parsimonious lists of inferred proteins. Protein identification criteria (minimum number of distinct peptides per protein being the most important here) and any protein FDR thresholds affect the final list of inferred proteins. The peptide and PTM reports commonly used in downstream statistical analyses of phospho peptides are conditioned on the final protein lists. Only the peptides and PTMs for the final list of proteins are reported.
+There are so many poor data analysis practices that are de facto standards in proteomics, it is hard to know where to start. All tools/pipelines are primarily designed to report parsimonious lists of inferred proteins. Protein identification criteria (minimum number of distinct peptides per protein being the most important here) and any protein FDR thresholds affect the final list of inferred proteins. The peptide and PTM reports commonly used in downstream statistical analyses of phospho peptides are conditioned on the final protein lists. Only the peptides and PTMs for the final list of proteins are reported.
 
 What protein inference/criteria do most tools/pipelines adopt that lets most phospho peptides end up in the peptide and PTM tables? It is the abandonment of the "two peptide rule" for protein identification. This was the de facto standard for many years until [this paper](https://pubs.acs.org/doi/abs/10.1021/pr9004794) argued against the two-peptide rule.
 
 > Even earlier, [ICAT (isotope coded affinity tags)](https://pubmed.ncbi.nlm.nih.gov/10504701/), a peptide-centric cysteine labeling and enrichment strategy produced data where single peptides were observed from proteins. The two-peptide rule was not good for these experiments. That is why the [ProteinProphet paper](http://tools.proteomecenter.org/publications/Nesvizhskii.AnalChem.03.pdf) was designed to report proteins with single peptides.
 
-Rigorous mathematical arguments and practical heuristics are often a poor mix. Peptide sequencing errors do not have a simple relationship to protein identification errors. It is not a simple target/decoy counting exercise like PSM errors.
+Rigorous mathematical arguments and practical heuristics are often a poor mix. Peptide sequencing errors do not have a simple relationship to protein identification errors. It is not a simple target/decoy counting exercise like PSM errors:
 
 ![Protein Errors](images/protein_errors.png)
 
-There is one-to-one relationship between PSM errors and protein errors when single peptide per protein results are allowed. A dataset of one hundred thousand MS2 scans with a 1% PSM error rate produces roughly 1,000 incorrect proteins. If we assume the data is from human and we have about 20,000 proteins in the canonical FASTA file, then 1,000 incorrect PSMs would give rise to about 25 incorrect proteins if two peptides per protein was required. For fun, if we required three peptides per protein, the estimated number of incorrect proteins would be less than one (0.4). The number of peptides per protein is a very powerful protein noise filter.
+There is one-to-one relationship between PSM errors and protein errors when single peptide per protein results are allowed. A dataset of one hundred thousand MS2 scans with a 1% PSM error rate produces 1,000 incorrect PSMs that result in roughly 1,000 incorrect proteins. If we assume the data is from human and we have about 20,000 proteins in the canonical FASTA file, then 1,000 incorrect PSMs would give rise to about 25 incorrect proteins if two peptides per protein was required. For fun, if we required three peptides per protein, the estimated number of incorrect proteins would be less than one (0.4). The number of peptides per protein is a very powerful protein noise filter.
 
-When there is poor understanding of the relationship between PSM errors and protein errors, a poor analogy to PSM FDR control is often used. PSM error control needs some scoring function to distinguish incorrect matches from correct matches. Some ad hoc protein scoring function must be constructed. This is basically a glorified spectral counting (sum of search engine scores, sum of some PSM probability, etc.). The target and decoy proteins get ranked by these scores and protein FDR is computed analogously to PSM FDR. That ranking mostly puts proteins with single peptides on the bottom, then proteins with two peptides, then proteins with three peptides, etc. The protein FDR trimming removes mostly single peptide proteins that had lower scoring PSMs. This process that masquerades as a statistical analysis is little more than a weighted peptides per protein rule.
+When there is poor understanding of the relationship between PSM errors and protein errors, an analogy to PSM FDR control is often used. PSM error control needs some scoring function to distinguish incorrect matches from correct matches. Some ad hoc protein scoring function must be constructed to distinguish confident protein IDs from less confident protein IDs. Common functions are sums of search engine scores, sums of some PSM probability, etc., where the PSMs have already undergone FDR filtering. This is basically just glorified spectral counting. The target and decoy proteins get ranked by these scores and protein FDR is computed analogously to PSM FDR via list traversals. That ranking mostly puts proteins with single peptides on the bottom, then proteins with two peptides, then proteins with three peptides, etc. The protein FDR trimming removes mostly single peptide proteins that had lower scoring PSMs. This process masquerades as a statistical analysis but is little more than a weighted "peptides per protein" rule.
 
-That said, single peptide per protein identifications followed by some protein FDR analysis retains most PSMs and only kicks out some of the lowest scoring matches. The PSM loss is not great and largely goes un-noticed. However, all tools/pipelines probably have a minimum peptides per protein cutoff (usually defaulting to one) that can be set to higher values. Any setting other than one peptide per protein will have some serious negative effects on phospho peptides. Tools/pipelines appearing to work for phospho peptides mostly do so completely by accident.
+That said, single peptide per protein identifications followed by some protein FDR analysis retains most PSMs and only kicks out some of the lowest scoring matches. The PSM loss is not great and largely goes un-noticed. However, all tools/pipelines probably have a minimum peptides per protein cutoff (usually defaulting to one) that can be set to higher values. Any setting other than one peptide per protein will have serious negative effects on phospho peptides. Tools/pipelines appearing to work for phospho peptides mostly do so completely by accident.
 
 ## Site numbers depend on the choice of protein sequences
 
+When was the last time (maybe the fist time?) you read the Methods section of a phospho proteomics paper and there was any mention of how the protein sequences were selected so that the modified peptide site numbers reported by the search engine would facilitate comparison to literature and downstream databases (Uniprot.org, PhosphoSitePlus.org, PathwayCommons.org, etc.). Phosphorylation residues and site numbers have an implicit dependence on a single specific protein sequence. Do you know the full, exact protein sequence that was used to define a residue/position for a PTM in a publication or database resource?
 
+It seems mind boggling to me that there is basically no discussion of protein sequence choice in phospho peptides studies that I have ever read. Amino acid residue and residue position counted from the N-terminus is how phospho sites are reported and tabulated. UniProt records have one protein sequence listed and modification sites are given in that protein sequence reference frame. Any alternatively spliced protein forms are described but no Swiss-Prot (the reviewed sequences) record lists sites in any alternative protein reference frames. Canonical sequences may or may not have initial Met residues that can cause off by one site number errors. Secreted proteins have signal peptides that are not present in the final protein forms but will probably have the signal peptide at the beginning of the FASTA sequence. There are also many mature proteins processed from longer protein sequences. What is the site numbering reference frame for those mature proteins?
 
-## Summary
+An important part of solving problems is thinking them all the way through. If we do not ever talk about the protein reference frames for phospho site numbering, just how well has this problem been thought through? The is another red flag to me.
+
+## Site localization is often impossible
+
+Site localization algorithms are often (mis)used in phospho peptide studies. This is one of those "looks great on paper" versus "comes up short" in the field situations. Situations were site localization might work:
+
+- peptides with one PTMs
+- PTMs in the middle of the peptides
+- possible sites in peptide are not adjacent residues
+- peptides without co-eluting positional isomers
+
+What is common in phospho peptide data?
+
+- multiple phospho groups per peptide
+- phospho sites close the peptide N- or C-terminus
+- many S, T, or Y residues per peptide
+- many adjacent S, T, or Y residues
+- (maybe) co-eluting positional isomers
+
+PTM work in proteomics is really hard. There are many assumptions in site localization algorithms and those assumptions are only met for a subset of the peptides. Treating site localization probabilities as rigorous computer values and invoking hard site localization probability cutoffs is not a smart thing to do. How well site localization works in "the wild" has not been proven well enough for me to trust using site localization as an upstream data filter. Another red flag is how often site localization probabilities are used to filter phospho peptide data.
+
+## Quantitative testing of peptide-centric data
+
+Most quantitative proteomics data is noisy at the measurement level (individual scans) and benefits from averaging measurements (provided you don't average away biological effects). Peptides can have multiple charge states, more than one MS2 scan can be acquired from the same peptide, Met residues can be oxidized during sample handling, peptides can be present in more than one fraction (in fractionated samples), peptides can have phospho groups attached to different residues, and peptides can have different numbers of phospho groups. Combining multiple PSMs makes sense for most of these cases. I view site localization as not very robust, so combining PSMs when the phospho site is on different residues in the same peptide sequence also makes sense. The total number of phospho groups in a protein region might have biological significance, so combining peptides that have different numbers of phospho groups might not be okay. Combining as many PSMs as possible before statistical testing will reduce measurement noise and reduce the number of statistical tests (reducing effects of multiple testing corrections).    
+
+## Summary of main concepts
+
 *Slide 1*
 
 ![Slide 1](images/Slide1.png)
@@ -90,3 +118,16 @@ Slide 5:
 Slide 6:
 
 ---
+
+## What `PD3.1_TMT_phospho_processer` script does
+
+Proteome Discoverer 3.1 can be configured to provide phospho peptide PSM lists with TMT intensities and site localization information from ptmRS. Those PSM lists can be filtered by Percolator q-value to provide an appropriately small number of incorrect PSMs. PSMs can be combined to improve quantitation with some loss of site localization information. The large PD export tables can be simplified for easier biological interpretation.
+
+PD SEQUEST setting are adjusted to provide better PSM ID rates. Protein ID criteria is one peptide per protein and the peptide and protein FDR settings in the consensus workflow are set to 0.99 to make sure all identified PSMs make it into the PSM results table. The script reads in a tab-delimited text version of the PSM results table. Peptide IDs are filtered to a user set q-value cutoff and delta mass window. Non-phosphorylated peptides are excluded. The filtered PSMs are written to a new PSM results table. PSMs and their reporter ion signals are combined. The combining algorithm uses the unmodified peptide sequence string and number of phospho groups as a combination key for PSM grouping. Information about what peptides were combined is also generated. A new PSM results table for combined peptides is produced. A simplified (only essential columns) combined PSM table is written for use in statistical testing notebooks.
+
+The script lets the user browse to the PSM export file and browse to the FASTA sequence file. Any PSM filters are hard coded at the top of the script. The PSM results file parsing is not adaptive. It expects all of the default columns typically present in the PSM results table. The tab-delimited text output files written by the script use the base file name of the PD PSM export table and append some suffixes.
+
+---
+
+Phil Wilmarth <br> PSR Core, OHSU <br> February 27, 2024
+   

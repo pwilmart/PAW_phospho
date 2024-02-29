@@ -91,7 +91,7 @@ There are many hidden assumptions in protein-centric proteomics data analyses. T
 
 ![Slide 2](images/Slide2.png)
 
-The enrichment process occurs after protein digestion and pulls out phosphorylated **peptides**. The mass spectrometer sequences **peptides**. The search engine assigns **peptide** sequences to fragment ion specta. The taget/decoy method determines correctness of **peptide** assignments. Proper summarization and reporting of **peptides** is what should be done for phospho peptide studies.
+The enrichment process occurs after protein digestion and pulls out phosphorylated **peptides**. The mass spectrometer sequences **peptides**. The search engine assigns **peptide** sequences to fragment ion specta. The taget/decoy method determines correctness of **peptide** assignments. Proper summarization and reporting of *peptides is what should be done for phospho peptide studies.
 
 ---
 
@@ -107,7 +107,7 @@ Every tool/pipeline commonly used in proteomics data analyses is designed to rep
 
 ![Slide 4](images/Slide4.png)
 
-Whether or not these common tools/pipelines (Proteome Discoverer, MaxQuant, the Trans-Proteomic Pipeline, FragPipe, etc.) can report acceptable results for phospho peptide studies depends on how they are configured. The setting need to pass through as many phospho peptides as possible into the final results files. Some loss of usable phospho peptides will always occur, but it can be kept to low levels with careful configuration of the tools/pipelines.
+Whether or not these common tools/pipelines (Proteome Discoverer, MaxQuant, the Trans-Proteomic Pipeline, FragPipe, etc.) can report acceptable results for phospho peptide studies depends on how they are configured. The settings need to pass through as many phospho peptides as possible into the final results files. Some loss of usable phospho peptides will always occur, but it can be kept to low levels with careful configuration of the tools/pipelines.
 
 ---
 
@@ -115,7 +115,7 @@ Whether or not these common tools/pipelines (Proteome Discoverer, MaxQuant, the 
 
 ![Slide 5](images/Slide5.png)
 
-Where that leaves us is yet again no acceptable tool for a very common type of proteomics experiment. I did an original version of this Python script for Proteome Discoverer 1.4 back in 2015 when I could not find any appropriate tools for processing TMT-labeled phospho peptide data. Nine years later I am updating the PD 1.4 script for PD 3.1. It would sure be nice if the decades of bioinformatic/computational work in proteomics actually solved some basic problems.
+That leaves us yet again with no proper tool for a very common type of proteomics experiment. I did an original version of this Python script for Proteome Discoverer 1.4 back in 2015 when I could not find any appropriate tools for processing TMT-labeled phospho peptide data. Nine years later I am updating the PD 1.4 script for PD 3.1 because I still do not see any appropriate tools for the job. It would sure be nice if the decades of bioinformatic/computational work in proteomics solved some of these basic problems...
 
 ---
 
@@ -143,7 +143,7 @@ In addition to the delta mass and q-value filters, non-phosphorylated peptides a
 
 The script lets the user browse to the PSM export file and browse to the FASTA sequence file. Any PSM filters are hard coded at the top of the script. The PSM results file parsing is not adaptive. It expects all of the default columns typically present in the PSM results table. The tab-delimited text output files written by the script use the base file name of the PD PSM export table and append some suffixes.
 
-If you are interested in using this script, you might want to contact me by email for assistance. This tool is in its early stages. It may need tweaks to run without errors on other datasets. The PD results files depend on how PD is configured. They may have fewer or more columns that the data I tested with. 
+If you are interested in using this script, you might want to contact me by email for assistance. This tool is in its early stages. It may need tweaks to run without errors on other datasets. The PD results files depend on how PD is configured. They may have fewer or more columns that the data I tested with.
 
 ---
 

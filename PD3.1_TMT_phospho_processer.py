@@ -65,10 +65,10 @@ MISSING = 150.0
 INTENSITY = 500.0
 
 # q-Value cutoff
-QVALUE = 0.01
+QVALUE = 0.005
 
 # plus/minus PPM deltamass window
-PPM = 20.0
+PPM = 10.0
 
 # skip unmodified peptides?
 SKIP_UNMOD = True
@@ -160,10 +160,9 @@ class PSM():
         
     
         
-        self.channels = ['126', '127N', '127C', '128N', '128C',
-                         '129N', '129C', '130N', '130C', 
-                         '131N', '131C', '132N', '132C', 
-                         '133N', '133C', '134N', '134C', '135N']
+        self.channels = ['126C', '127N', '127C', '128N', '128C', '129N',
+                         '129C', '130N', '130C', '131N', '131C', '132N',
+                         '132C', '133N', '133C', '134N', '134C', '135N']
 
         # parse row items into object attributes
         # 
@@ -207,8 +206,12 @@ class PSM():
         self.plex = len([x for x in list(header_map.keys()) if x.startswith('Abundance:')])
         self.intensities = [0.0 for x in self.channels[:self.plex]]
         for i, channel in enumerate(self.channels[:self.plex]):
-            key = 'Abundance: ' + channel
-            self.intensities[i]  =  self._float(items[header_map[key]], missing)
+            try:
+                key = 'Abundance: ' + channel
+                self.intensities[i]  =  self._float(items[header_map[key]], missing)
+            except KeyError:
+                key = 'Abundance: ' + channel[:-1]
+                self.intensities[i]  =  self._float(items[header_map[key]], missing)
         self.total = sum(self.intensities)
         self.quant_info = items[header_map['Quan Info']]
         self.xcorr = self._float(items[header_map['XCorr']])
@@ -217,12 +220,17 @@ class PSM():
         self.pep = self._float(items[header_map['PEP']])
         self.svm_score = self._float(items[header_map['SVM Score']])
         try:
-            self.best_site_probabilities = items[header_map['ptmRS: Best Site Probabilities']]
+            index = header_map['ptmRS: Best Site Probabilities']
+        except KeyError:
+            index = header_map['PhosphoRS: Best Site Probabilities']
+        try:
+            self.best_site_probabilities = items[index]
         except:
             self.best_site_probabilities = ''
                 
         # some computed attributes and attributes that are set later
-        self.grouper = self.sequence.upper() + '_' + str(int(round(self.theo_mhplus, 0)))  # key for grouping        
+##        self.grouper = self.sequence.upper() + '_' + str(int(round(self.theo_mhplus, 0)))  # key for grouping
+        self.grouper = self.sequence.upper() + '_' + str(self.number_phospho_groups)  # key for grouping
         self.meets_all_criteria = False
         self.psm_number = None
         self.grouped_psms = ''
@@ -256,6 +264,7 @@ class PSM():
         print(f'Sequence: {self.sequence}')
         print(f'Ambiguity: {self.psm_ambiguity}')
         print(f'Modifications: {self.modifications}')
+        print(f'Number of phospho groups: {self.number_phospho_groups}')
         print(f'Plex: {self.plex}')
         for i, channel in enumerate(self.channels[:self.plex]):
             print(f'{channel}: {self.intensities[i]:,.0f}')
@@ -272,6 +281,7 @@ class PSM():
         print(f'Delta Mass [Da]: {self.deltamass_da}')
         print(f'Delta Mass [PPM]: {self.deltamass_ppm}')
         print(f'MeetsAllCriteria: {self.meets_all_criteria}')
+        print(f'Group Key: {self.grouper}')
         return
 
     def make_header(self):
@@ -313,7 +323,7 @@ class PSM():
     def make_header_brief(self):
         """Makes a brief header line.
         """
-        header_line = ['Counter', 'Protein Accessions', 'Protein Descriptions',
+        header_line = ['Counter', 'Group Key', 'Protein Accessions', 'Protein Descriptions',
                        'Quan Info', 'Isolation Inteference [%]', 'SPS Mass Matches',
                        'New Sequence', 'New Modifications', 'Number Phospho Sites',
                        'Peptide Length', 'New Site Prob Peptide', 'New Site Prob Protein',
@@ -323,7 +333,7 @@ class PSM():
     def make_data_brief(self):
         """Makes a brief data line for PSM data
         """
-        data_list = ([1, self.protein_accessions, self.protein_descriptions,
+        data_list = ([1, self.grouper, self.protein_accessions, self.protein_descriptions,
                       self.quant_info, self.isolation_interference, self.sps_mass_matches,
                       self.new_sequence, self.new_modifications, self.number_phospho_groups,
                       self.peptide_length, self.new_site_prob_peptide, self.new_site_prob, self.sites,
@@ -346,49 +356,56 @@ def parse_psm_lines(psm_file, proteins, prot_index, max_qvalue=0.05, max_ppm=20.
     min_length = 7
     max_length = 40
 
-    # initialize counters, etc.    
-    qval_good = 0
-    qval_bad = 0
-    in_ppm = 0
-    out_ppm = 0
-    above_int = 0
-    below_int = 0
-    total = 0
-    top = 0
-    valid = 0
-    reject = 0
+    # initialize counters and psm list
+    total = 0       #0
+    top = 0         #1
+    unmod = 0       #2
+    mod = 0         #3
+    valid = 0       #4
+    reject = 0      #5
+    qval_good = 0   #6
+    qval_bad = 0    #7
+    in_ppm = 0      #8
+    out_ppm = 0     #9
+    above_int = 0   #10
+    below_int = 0   #11    
     psm_list = []
-    
+
+    # start parsing PSM file
     start = False    
     for line in open(psm_file, 'r'):
         line = line.strip()
         if not line:
             continue    # skip blank lines
         
-        total += 1        
         if not start:   # skip lines until header
             if line.startswith('Checked\tConfidence'):   # look for header line
                 psm_map = make_header_map(line)                
                 start = True
+                total = 1
                 continue
         else:
-            # parse table lines
+            # parse table line
             psm = PSM(line, psm_map, proteins, prot_index, missing, separator)
-            if not psm.protein_accessions: # this may filter out low q-value matches
-                total += -1
-                reject += -1
-                continue
+            total += 1
 
-            # PSM tables have extra lines for non-top hits to get deltaCN values, skip those
+##            # this may filter out low q-value matches (?)
+##            if not psm.protein_accessions: 
+##                total += -1
+##                reject += -1
+##                continue
+
+            # skip non-top-ranked matches (Percolator considers top 5 matches)
             if psm.rank == 1:
                 top += 1
             else:
                 continue
 
-            # add real PSMs to list
+            # add PSM to list
             psm_list.append(psm)
 
-            # test various criteria
+            # test various criteria, count passing/failing PSMs, set "meets_all_criteria" flag (False by default)
+            # test q-value cutoff
             if psm.q_value <= max_qvalue:
                 qval_good += 1
             else:
@@ -422,10 +439,18 @@ def parse_psm_lines(psm_file, proteins, prot_index, max_qvalue=0.05, max_ppm=20.
                 reject += 1
                 continue
 
+            if psm.number_phospho_groups != 0:
+                mod += 1                
+            else:
+                unmod += 1
+                reject += 1
+                continue
+
             psm.meets_all_criteria = True
             valid += 1
-                    
-    return [total, top, valid, reject, qval_good, qval_bad, in_ppm, out_ppm, above_int, below_int], psm_list
+            
+    counters = [total, top, unmod, mod, valid, reject, qval_good, qval_bad, in_ppm, out_ppm, above_int, below_int]                
+    return counters, psm_list
 
 def parse_mods(modstring):
     """Parses PD modification descriptions to get
@@ -769,7 +794,7 @@ def make_grouped_PSMs(psm_list, group_index, missing=150.0):
             best_psm.grouped_psms = '; '.join([str(x.psm_number) for x in psm_group_list])
             # sum the intensities for the group
             summed = [0.0 for i in best_psm.channels]
-            for i in range(len(best_psm.channels)):
+            for i in range(len(best_psm.channels[:best_psm.plex])):
                 for j in range(len(psm_group_list)):
                     summed[i] += psm_group_list[j].intensities[i]
             best_psm.intensities = copy.deepcopy(summed)
@@ -893,22 +918,20 @@ for psm in psm_list:
 # print keys at end of table (psm should still be last psm in psm_list)
 print(psm.make_key(), file=psmout)
 
+# print the parsing statistics
 for out in [None, psmout, log_obj]:
-    # print the parsing statistics
     print('The PSM export file was:', base, file=out)
     print('The FASTA database was:', db_filename, file=out)
-    print('There were', counts[0], 'Total rows in PSM table export', file=out)
-    print('There were', counts[1], 'Top ranked PSMs', file=out)
-    print('There were', counts[2], 'PSMs that passed all criteria', file=out)
-    print('There were', counts[3], 'PSMs that were rejected', file=out)
-    print('There were', counts[4], 'PSMs passing q-value cutoff', file=out)
-    print('There were', counts[5], 'PSMs that failed q-value cutoff', file=out)
-    print('There were', counts[6], 'PSMs passing deltamass cutoff', file=out)
-    print('There were', counts[7], 'PSMs that failed deltamass cutoff', file=out)
-    print('There were', counts[8], 'PSMs with TMT ions above intensity threshold', file=out) 
-    print('There were', counts[9], 'PSMs with TMT ions below intensity threshold', file=out)
-    print('(%0.2f%% of scans rejected)' % (100.0 * counts[9] / (counts[8]+counts[9]),), file=out)
-
+    print('\nThere were', counts[0], 'Total rows in PSM table export', file=out)    
+    print('There were %i top-ranked PSMs (%i non-top-ranked)' % (counts[1], counts[0]-counts[1]), file=out)    
+    print('There were %i PSMs passing q-value cutoff (%i failed)' % (counts[6], counts[7]), file=out)
+    print('There were %i PSMs passing deltamass ppm cutoff (%i failed)' %(counts[8], counts[9]), file=out)
+    print('There were %i PSMs with reporter ions above intensity cutoff (%i below)' % (counts[10], counts[11]), file=out)     
+    print('   (%0.2f%% of reporter ion scans were too low intensity)' % (100.0 * counts[11] / (counts[10]+counts[11]),), file=out)
+    print('There were %i phosphorylated PSMs (%i unmodified)' % (counts[3], counts[2]), file=out)
+    print('\nThere were %i PSMs that passed all criteria (%i failed tests)' % (counts[4], counts[5]), file=out)
+    print('   (%0.0f PSMs are estimated to be incorrect matches)' % (QVALUE * counts[4],), file=out)
+    
 # close files
 psmout.close()
 log_obj.close()

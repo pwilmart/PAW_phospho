@@ -65,10 +65,10 @@ MISSING = 150.0
 INTENSITY = 500.0
 
 # q-Value cutoff
-QVALUE = 0.005
+QVALUE = 0.01
 
 # plus/minus PPM deltamass window
-PPM = 10.0
+PPM = 20.0
 
 # skip unmodified peptides?
 SKIP_UNMOD = True

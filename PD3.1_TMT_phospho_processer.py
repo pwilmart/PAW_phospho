@@ -312,7 +312,7 @@ class PSM():
                       self.mhplus, self.theo_mhplus, self.deltamass_ppm, self.deltamass_da,
                       self.activation_type, self.ms_order, self.isolation_interference, self.sps_mass_matches,
                       self.ave_reporter_sn, self.ion_inject_time, self.rt_min, self.first_scan, self.file_id] +                    
-                     self.intensities +                     
+                     self.intensities[:self.plex] +                     
                      [self.total, self.quant_info, self.xcorr, self.protein_groups, self.q_value, self.pep,
                       self.svm_score, self.best_site_probabilities, self.psm_number, self.meets_all_criteria,
                       self.new_sequence, self.new_modifications, self.number_phospho_groups, self.peptide_length,

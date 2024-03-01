@@ -28,7 +28,7 @@ All tools/pipelines are primarily designed to report parsimonious lists of infer
 
 ### Single-peptide-per-protein identifications
 
-What protein inference/criteria do tools/pipelines adopt that lets most phospho peptides end up in the peptide and PTM tables? It is the abandonment of the "two peptide rule" for protein identification. This was the de facto standard for many years until [this paper](https://pubs.acs.org/doi/abs/10.1021/pr9004794) argued against the two-peptide rule. Yes, some "one-hit-wonders" might be correct, but the difficulty in distinguishing them from incorrect proteins is why they were discarded in the place. Quantification is what is import these day, not identification. Single peptide per protein ID will be the lowest abundance proteins and will seldom be quantifiable. Think about it, 100 proteins with a single PSM each is a total of 100 crappy PSMs in dataset that are typically 10s to 100s of thousands of PSMs.
+What protein inference/criteria do tools/pipelines adopt that lets most phospho peptides end up in the peptide and PTM tables? It is the abandonment of the "two peptide rule" for protein identification. This was the de facto standard for many years until [this paper](https://pubs.acs.org/doi/abs/10.1021/pr9004794) argued against the two-peptide rule. Yes, some "one-hit-wonders" might be correct, but the difficulty in distinguishing them from incorrect proteins is why they were discarded in the place. Quantification is what is import these day, not identification. Single peptide per protein IDs will be the lowest abundance proteins and will seldom be quantifiable. Think about it, 100 proteins with a single PSM each is a total of 100 crappy PSMs in dataset that are typically 10s to 100s of thousands of PSMs.
 
 > Even earlier, [ICAT (isotope coded affinity tags)](https://pubmed.ncbi.nlm.nih.gov/10504701/), a peptide-centric cysteine labeling and enrichment strategy produced data where single peptides were observed from proteins. The two-peptide rule was not good for those experiments. That is why the [ProteinProphet paper](http://tools.proteomecenter.org/publications/Nesvizhskii.AnalChem.03.pdf) was designed to report proteins with single peptides.
 
@@ -52,7 +52,7 @@ An important part of solving problems is thinking them all the way through. If w
 
 ### Site localization is often impossible
 
-Site localization algorithms are often (mis)used in phospho peptide studies. This is one of those "looks great on paper" versus "comes up short in practice" situations. Like too many spectral processing algorithms, site localization can work for abundant peptides with high signal-to-noise and good peptide fragmentation. A lot of MS2 spectra in real world studies are not high quality. Situations were site localization might work:
+Site localization algorithms are often (mis)used in phospho peptide studies. This is one of those "looks great on paper" but "comes up short in practice" situations. Like too many spectral processing algorithms, site localization can work for abundant peptides with high signal-to-noise and good peptide fragmentation. A lot of MS2 spectra in real world studies are not high quality. Situations were site localization might work:
 
 - peptides with one PTMs
 - PTMs in the middle of the peptides

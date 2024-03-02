@@ -52,7 +52,9 @@ An important part of solving problems is thinking them all the way through. If w
 
 ### Site localization is often impossible
 
-Site localization algorithms are often (mis)used in phospho peptide studies. This is one of those "looks great on paper" but "comes up short in practice" situations. Like too many spectral processing algorithms, site localization can work for abundant peptides with high signal-to-noise and good peptide fragmentation. A lot of MS2 spectra in real world studies are not high quality. Situations were site localization might work:
+Site localization algorithms are often (mis)used in phospho peptide studies. This is one of those "looks great on paper" but "comes up short in practice" situations. Like too many spectral processing algorithms, site localization can work for abundant peptides with high signal-to-noise and good peptide fragmentation. A lot of MS2 spectra in real world studies are not high quality.
+
+Situations were site localization might work:
 
 - peptides with one PTMs
 - PTMs in the middle of the peptides
@@ -71,7 +73,7 @@ PTM work in proteomics is really hard. There are many assumptions in site locali
 
 ## Quantitative testing of peptide-centric data
 
-The above issues are related to identification of phospho peptides and reporting phospho peptide sites. Biological experiments involve comparing sample groups to see what phospho peptides are differentially abundant. Phospho peptide enrichment proteomics will run headlong into bottom-up quantitative proteomics. We need to think through how to summarize phospho peptide quantitative measurements for safer statistical testing.
+The above issues are related to identification of phospho peptides and reporting phospho peptide sites. Biological experiments involve comparing sample groups to see what phospho peptides are differentially abundant. Phospho peptide enrichment proteomics will run headlong into bottom-up quantitative proteomics. We need to think about how to summarize phospho peptide quantitative measurements for safer statistical testing.
 
 Most quantitative proteomics data is noisy at the measurement level (individual scans) and benefits from averaging measurements (provided you don't average away biological effects). Peptides can have multiple charge states, more than one MS2 scan can be acquired from the same peptide, Met residues can be oxidized during sample handling, peptides can be present in more than one fraction (in fractionated samples), peptides can have phospho groups attached to different residues, and peptides can have different numbers of phospho groups.
 
@@ -91,7 +93,7 @@ There are many hidden assumptions in protein-centric proteomics data analyses. T
 
 ![Slide 2](images/Slide2.png)
 
-The enrichment process occurs after protein digestion and pulls out phosphorylated **peptides**. The mass spectrometer sequences **peptides**. The search engine assigns **peptide** sequences to fragment ion specta. The taget/decoy method determines correctness of **peptide** assignments. Proper summarization and reporting of *peptides is what should be done for phospho peptide studies.
+The enrichment process occurs after protein digestion and pulls out phosphorylated **peptides**. The mass spectrometer sequences **peptides**. The search engine assigns **peptide** sequences to fragment ion specta. The taget/decoy method determines correctness of **peptide** assignments. Proper summarization and reporting of peptides is what should be done for phospho peptide studies.
 
 ---
 
@@ -99,7 +101,7 @@ The enrichment process occurs after protein digestion and pulls out phosphorylat
 
 ![Slide 3](images/Slide3.png)
 
-Every tool/pipeline commonly used in proteomics data analyses is designed to report **proteins**. A large fraction of the data processing in these tools/pipelines is devoted to the protein part. The important question is whether or not this protein part distorts the summarized and reported peptides.
+Almost every tool/pipeline commonly used in proteomics data analyses is designed to report **proteins**. A large fraction of the data processing in these tools/pipelines is devoted to the protein part. The important question is whether or not this protein part distorts the summarized and reported peptides.
 
 ---
 
